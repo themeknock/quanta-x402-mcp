@@ -22,8 +22,30 @@ class Settings(BaseSettings):
     cdp_api_key_id: str | None = None
     cdp_api_key_secret: str | None = None
 
+    # Public origin of this deployment (used for MCP host validation).
+    public_base_url: str = "http://localhost:4021"
+    # Extra Host header values the MCP endpoint accepts, comma separated.
+    # DNS-rebinding protection is on, so every hostname that reaches us must be
+    # listed (Fly's *.fly.dev name, for instance).
+    mcp_extra_hosts: str = ""
+
+    # Per-payer token bucket (the payment address is the principal).
+    rate_capacity: int = 60
+    rate_refill_per_s: float = 1.0
+
     app_env: str = "dev"
     port: int = 4021
+
+
+    def mcp_allowed_hosts(self) -> list[str]:
+        from urllib.parse import urlparse
+
+        hosts = ["localhost", "localhost:*", "127.0.0.1", "127.0.0.1:*"]
+        public = urlparse(self.public_base_url).netloc
+        if public:
+            hosts += [public, public.split(":")[0] + ":*"]
+        hosts += [h.strip() for h in self.mcp_extra_hosts.split(",") if h.strip()]
+        return sorted(set(hosts))
 
 
 settings = Settings()

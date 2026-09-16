@@ -1,17 +1,18 @@
-"""Seed data + the query/logging functions shared by the HTTP API and the MCP
-server. Both surfaces read through here, so there is one source of truth.
+"""Seed data + the query functions shared by the HTTP API and the MCP server.
 
 The dataset is a small, clearly-labelled SAMPLE snapshot - enough to prove the
 pay-per-call mechanics end to end without pretending to be a live market feed.
+It is replaced by live website checks when the service is re-domained; the usage
+log has already moved to app/usage.py.
 """
 from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import desc, select
+from sqlalchemy import select
 
 from .db import SessionLocal
-from .models import Asset, UsageLog
+from .models import Asset
 
 SEED_ASSETS: list[dict[str, Any]] = [
     {"symbol": "BTC", "name": "Bitcoin", "chain": "bitcoin", "category": "store-of-value",
@@ -84,32 +85,3 @@ def derive_signal(asset: dict[str, Any]) -> dict[str, Any]:
     tier = "core" if rank and rank <= 5 else "mid" if rank and rank <= 50 else "long-tail"
     bias = "accumulate" if cat in {"store-of-value", "smart-contract"} else "neutral"
     return {"symbol": asset["symbol"], "tier": tier, "bias": bias, "rank": rank}
-
-
-async def log_usage(
-    route: str,
-    *,
-    symbol: str = "",
-    network: str = "",
-    payer: str = "",
-    amount: str = "",
-    tx_ref: str = "",
-    paid: bool = False,
-) -> None:
-    async with SessionLocal() as s:
-        s.add(UsageLog(route=route, symbol=symbol, network=network, payer=payer,
-                       amount=amount, tx_ref=tx_ref, paid=paid))
-        await s.commit()
-
-
-async def recent_usage(limit: int = 25) -> list[dict[str, Any]]:
-    async with SessionLocal() as s:
-        rows = (
-            await s.execute(select(UsageLog).order_by(desc(UsageLog.ts)).limit(limit))
-        ).scalars().all()
-        return [
-            {"ts": r.ts.isoformat(), "route": r.route, "symbol": r.symbol,
-             "network": r.network, "payer": r.payer, "amount": r.amount,
-             "tx_ref": r.tx_ref, "paid": r.paid}
-            for r in rows
-        ]
