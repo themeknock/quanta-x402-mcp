@@ -294,6 +294,7 @@ app.get("/health", async (c) => {
  * someone else's site and used as an anonymous scanner.
  */
 app.get("/demo", async (c) => {
+  const startedAt = Date.now();
   const settings = c.get("settings");
   const requested = c.req.query("url") ?? "";
   const fallback = settings.demoAllowlist[0] ?? "themeknock.net";
@@ -318,6 +319,7 @@ app.get("/demo", async (c) => {
     route: "/demo",
     targetHost: host,
     paid: false,
+    durationMs: Date.now() - startedAt,
     verdictHash: await bodyHash(body),
   });
   return c.json(body, status as 200);

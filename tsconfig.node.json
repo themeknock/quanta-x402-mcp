@@ -1,0 +1,17 @@
+{
+  "//": "client/ and scripts/ run in Node, not in workerd. They get Node's types; src/ must not, or the two runtimes' globals blur together and the Worker typechecks against APIs it does not have.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true
+  },
+  "include": ["client/**/*.ts", "scripts/**/*.ts"]
+}
