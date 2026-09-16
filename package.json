@@ -1,0 +1,35 @@
+{
+  "name": "quanta-x402-mcp",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "description": "Pay-per-call website checks for autonomous agents. x402-metered, MCP-native, on Cloudflare Workers.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "db:local": "wrangler d1 execute quanta --local --file schema.sql",
+    "db:remote": "wrangler d1 execute quanta --remote --file schema.sql",
+    "stats": "tsx scripts/stats.ts",
+    "pay": "tsx client/pay-and-fetch.ts"
+  },
+  "dependencies": {
+    "@x402/core": "2.26.0",
+    "@x402/evm": "2.26.0",
+    "@x402/hono": "2.26.0",
+    "hono": "4.13.8"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "@cloudflare/workers-types": "^5.20260916.1",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@x402/fetch": "2.26.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "viem": "^2.48.11",
+    "vitest": "^4.1.0",
+    "wrangler": "^4.124.0"
+  }
+}

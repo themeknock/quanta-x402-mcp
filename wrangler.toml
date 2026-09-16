@@ -1,0 +1,36 @@
+name = "quanta"
+main = "src/index.ts"
+compatibility_date = "2026-08-22"
+compatibility_flags = ["nodejs_compat"]
+
+# D1 holds the audit log, the idempotency cache and the rate-limit buckets.
+# Create it once:  npx wrangler d1 create quanta
+# Apply schema:    npm run db:remote
+[[d1_databases]]
+binding = "DB"
+database_name = "quanta"
+database_id = "PLACEHOLDER_SET_BY_WRANGLER_D1_CREATE"
+
+# Public configuration. Anything sensitive is a secret (npx wrangler secret put NAME),
+# never a var: X402_EVM_ADDRESS, X402_SVM_ADDRESS, CDP_API_KEY_ID, CDP_API_KEY_SECRET.
+[vars]
+X402_ENABLED = "true"
+X402_FACILITATOR_URL = "https://www.x402.org/facilitator"
+X402_PRICE = "$0.001"
+X402_ENABLE_SVM = "false"
+CHECK_TIMEOUT_S = "10"
+CHECK_MAX_BYTES = "2097152"
+CHECK_MAX_REDIRECTS = "5"
+RATE_CAPACITY = "60"
+RATE_REFILL_PER_S = "1"
+DEMO_ALLOWLIST = "themeknock.net,example.com"
+PUBLIC_BASE_URL = "https://quanta.themeknock.net"
+
+# Bound in session 4. Cloudflare writes the DNS record and issues the certificate itself -
+# there is no CNAME to copy and no proxy toggle. Uncomment, then `npx wrangler deploy`.
+# [[routes]]
+# pattern = "quanta.themeknock.net"
+# custom_domain = true
+
+[observability]
+enabled = true

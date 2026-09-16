@@ -1,0 +1,12 @@
+# Local dev only. Copy to .dev.vars (gitignored) - `wrangler dev` reads it.
+# In production these are `npx wrangler secret put <NAME>`.
+
+# Base Sepolia address that RECEIVES the micropayments.
+X402_EVM_ADDRESS=0xYourBaseSepoliaAddress
+
+# Solana rail stays off: the public testnet facilitator settles EVM only.
+X402_SVM_ADDRESS=
+
+# Mainnet settlement via Coinbase CDP. Blank = testnet, which is where this stays.
+CDP_API_KEY_ID=
+CDP_API_KEY_SECRET=
