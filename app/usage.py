@@ -5,7 +5,7 @@ import hashlib
 import json
 from typing import Any
 
-from sqlalchemy import desc, select
+from sqlalchemy import desc, select, update
 
 from .db import SessionLocal
 from .models import UsageLog
@@ -38,12 +38,39 @@ async def log_usage(
     idempotent_replay: bool = False,
     duration_ms: int = 0,
     verdict_hash: str = "",
+    payment_nonce: str = "",
 ) -> None:
     async with SessionLocal() as s:
         s.add(UsageLog(surface=surface, route=route, target_host=target_host,
                        network=network, payer=payer, amount=amount, tx_ref=tx_ref,
                        paid=paid, idempotent_replay=idempotent_replay,
-                       duration_ms=duration_ms, verdict_hash=verdict_hash))
+                       duration_ms=duration_ms, verdict_hash=verdict_hash,
+                       payment_nonce=payment_nonce))
+        await s.commit()
+
+
+async def mark_settled(nonce: str, *, tx_ref: str, payer: str = "",
+                       network: str = "") -> None:
+    """Stamp the settlement onto the row the HTTP route already wrote.
+
+    The route cannot know the tx hash: the SDK middleware settles after the
+    handler returns. So the row goes in unpaid and this runs from the SDK's
+    after-settle hook. Matching on the payment nonce, which is unique per
+    payment and visible on both sides.
+    """
+    if not nonce:
+        return
+    values = {"paid": True, "tx_ref": tx_ref}
+    if payer:
+        values["payer"] = payer
+    if network:
+        values["network"] = network
+    async with SessionLocal() as s:
+        await s.execute(
+            update(UsageLog)
+            .where(UsageLog.payment_nonce == nonce, UsageLog.paid.is_(False))
+            .values(**values)
+        )
         await s.commit()
 
 

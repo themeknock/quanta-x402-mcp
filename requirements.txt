@@ -11,6 +11,8 @@ greenlet>=3.0          # required by SQLAlchemy async
 pydantic>=2.7
 pydantic-settings>=2.3
 httpx>=0.27
+# HTML parsing for the page checks (no lxml build in a slim image)
+selectolax>=0.3
 
 # Local dev DB
 aiosqlite>=0.20

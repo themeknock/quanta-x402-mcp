@@ -1,4 +1,4 @@
-"""Demo: an autonomous agent pays per call, then fetches structured data.
+"""Demo: an autonomous agent pays per call, then fetches a website check.
 
 Step 1 always runs and proves the metering is live: an unpaid request gets a real
 HTTP 402 with payment requirements.
@@ -25,8 +25,8 @@ BASE = os.getenv("QUANTA_URL", "http://localhost:4021")
 async def main() -> None:
     # 1) Unpaid -> 402 challenge
     async with httpx.AsyncClient(timeout=15) as c:
-        r = await c.get(f"{BASE}/v1/assets/BTC")
-        print(f"[unpaid] GET /v1/assets/BTC -> {r.status_code}")
+        r = await c.get(f"{BASE}/v1/check?url=https://example.com")
+        print(f"[unpaid] GET /v1/check?url=https://example.com -> {r.status_code}")
         if r.status_code == 402:
             print("  payment-required:", r.headers.get("PAYMENT-REQUIRED") or r.text[:400])
         elif r.status_code == 200:
@@ -43,9 +43,9 @@ async def main() -> None:
 
         account = Account.from_key(pk)
         async with x402HttpxClient(account=account, base_url=BASE) as client:
-            resp = await client.get("/v1/assets/BTC")
+            resp = await client.get("/v1/check?url=https://example.com")
             body = await resp.aread()
-            print(f"[paid] GET /v1/assets/BTC -> {resp.status_code}")
+            print(f"[paid] GET /v1/check?url=https://example.com -> {resp.status_code}")
             print("  settlement:", resp.headers.get("X-PAYMENT-RESPONSE", "(see facilitator)"))
             print("  body:", body[:400])
     except Exception as exc:

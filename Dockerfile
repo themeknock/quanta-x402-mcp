@@ -12,5 +12,5 @@ RUN pip install -r requirements.txt
 COPY . .
 
 EXPOSE 4021
-# Railway/Cloud Run inject $PORT; default to 4021 locally.
+# The host injects $PORT; default to 4021 locally.
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-4021}"]

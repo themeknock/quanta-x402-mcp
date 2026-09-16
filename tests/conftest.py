@@ -30,6 +30,8 @@ os.environ["RATE_CAPACITY"] = "60"
 os.environ["RATE_REFILL_PER_S"] = "1"
 
 from x402.http.utils import safe_base64_encode  # noqa: E402
+
+from app.checks.ssrf import Target  # noqa: E402
 from x402.schemas import (  # noqa: E402
     PaymentPayload,
     SettleResponse,
@@ -95,6 +97,53 @@ def client(facilitator):
 
 
 @pytest.fixture
+def canned_page(monkeypatch):
+    """Replace the outbound GET with a fixed response, so the paid-path tests
+    assert our plumbing rather than the weather on someone else's server."""
+    from app.checks import fetch as fetch_module
+
+    body = (b"<!doctype html><html><head><title>Northgate Home Services</title>"
+            b'<meta name="viewport" content="width=device-width, initial-scale=1">'
+            b"</head><body><h1>Boiler repairs</h1></body></html>")
+
+    async def fake_get(url: str):
+        return fetch_module.Fetch(
+            True, status=200, final_url=url, redirects=0, ttfb_ms=91, total_ms=140,
+            bytes=len(body), content_type="text/html; charset=utf-8", body=body,
+            response_headers={"content-type": "text/html; charset=utf-8",
+                              "strict-transport-security": "max-age=63072000",
+                              "x-content-type-options": "nosniff"},
+            target=Target(True, host="northgate.example", ip="93.184.216.34"),
+        )
+
+    monkeypatch.setattr(fetch_module, "get", fake_get)
+    return fake_get
+
+
+@pytest.fixture
+def no_tls(monkeypatch):
+    """Skip the real TLS handshake, and the DNS lookup behind it, for the test
+    host. The guard itself is exercised for real in test_ssrf.py."""
+    from app.checks import ssrf as ssrf_module
+    from app.checks import tls as tls_module
+
+    async def fake_check(host, port=443, timeout=10.0):
+        return {"ok": True, "days_left": 60, "not_after": "2026-11-15T00:00:00Z",
+                "issuer": "Let's Encrypt", "san_match": True}
+
+    real_resolve = ssrf_module.resolve
+
+    async def fake_resolve(host, port=443):
+        if host == "northgate.example":
+            return Target(True, host=host, ip="93.184.216.34")
+        return await real_resolve(host, port)
+
+    monkeypatch.setattr(tls_module, "check", fake_check)
+    monkeypatch.setattr(ssrf_module, "resolve", fake_resolve)
+    return fake_check
+
+
+@pytest.fixture
 def reset_facilitator(facilitator):
     facilitator.reject_verify = None
     facilitator.reject_settle = None
@@ -110,6 +159,19 @@ def payment_header(price_override: str | None = None) -> str:
     return asyncio.run(_build_payment_header(price_override))
 
 
+def paid_headers(idempotency_key: str | None = None) -> dict:
+    """Headers a paying agent sends.
+
+    The V2 header is PAYMENT-SIGNATURE (x402/http/constants.py); X-PAYMENT is the
+    V1 legacy name and the server's _extract_payment does not read it. We do not
+    invent a header of our own.
+    """
+    out = {"payment-signature": payment_header()}
+    if idempotency_key:
+        out["Idempotency-Key"] = idempotency_key
+    return out
+
+
 async def _build_payment_header(price_override: str | None = None) -> str:
     """A well-formed payment payload for the price this service advertises.
 
@@ -122,11 +184,18 @@ async def _build_payment_header(price_override: str | None = None) -> str:
     requirements = (await payment_requirements())[0]
     if price_override is not None:
         requirements = requirements.model_copy(update={"amount": price_override})
+    import secrets
+    import time
+
+    now = int(time.time())
     payload = PaymentPayload(
         x402_version=2,
         accepted=requirements,
         payload={"signature": "0x" + "ab" * 32,
                  "authorization": {"from": PAYER, "to": requirements.pay_to,
-                                   "value": requirements.amount}},
+                                   "value": requirements.amount,
+                                   "validAfter": str(now - 60),
+                                   "validBefore": str(now + 300),
+                                   "nonce": "0x" + secrets.token_hex(32)}},
     )
     return safe_base64_encode(payload.model_dump_json(by_alias=True, exclude_none=True))

@@ -1,4 +1,4 @@
-"""Quanta MCP server - the same capabilities, exposed as MCP tools so an
+"""Quanta MCP server - the same website checks, exposed as MCP tools so an
 autonomous agent can discover and call them natively.
 
 x402-over-MCP, done properly. MCP has no ASGI middleware to gate tools, so the
@@ -8,8 +8,8 @@ payment arrives as a tool argument. Every paid tool runs the same four steps:
                                 the SAME resource server the HTTP middleware uses)
     2. payment present       -> VERIFY it with the facilitator (app/payments.py).
                                 Presence is not proof. A bogus string is refused.
-    3. verified              -> per-payer rate limit, then run the tool
-    4. tool succeeded        -> SETTLE, then write the audit row
+    3. verified              -> per-payer rate limit, then run the check
+    4. check ran             -> SETTLE, then write the audit row
 
 Transport is stateless streamable HTTP with JSON responses: no session to pin an
 agent to one machine, and every request carries its own payment.
@@ -28,9 +28,10 @@ import anyio
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
-from app import data, payments, ratelimit, usage
+from app import payments, ratelimit, usage
+from app.checks import verdict
+from app.checks.fetch import host_of
 from app.config import settings
-from app.data import seed_if_empty
 from app.db import init_db
 
 # DNS-rebinding protection stays ON: every Host header that may reach /mcp has to
@@ -48,9 +49,9 @@ mcp = FastMCP(
 
 # tool name -> what the payer is buying (shown in the challenge).
 TOOLS: dict[str, str] = {
-    "list_assets": "List the structured asset universe.",
-    "get_asset": "Full structured record for one asset.",
-    "get_signal": "Derived signal for one asset.",
+    "check_url": "Full check of one URL: reachability, TLS, security headers, raw-HTML basics.",
+    "check_tls": "Certificate facts for one host: validity, days left, issuer, hostname match.",
+    "check_headers": "Status, timings and the four security headers for one URL.",
 }
 
 
@@ -72,8 +73,8 @@ async def _gate(tool: str, payment: str | None) -> tuple[Any, dict[str, Any] | N
 
 
 async def _finish(tool: str, verified: Any, body: dict[str, Any],
-                  started: float, target: str = "") -> dict[str, Any]:
-    """Settle the payment, write the audit row, stamp _meta on the body."""
+                  started: float, target: str) -> dict[str, Any]:
+    """Settle the payment, write the audit row, stamp the settlement on the body."""
     settled, tx_ref = await verified.settle()
     duration_ms = int((time.perf_counter() - started) * 1000)
     await usage.log_usage(
@@ -84,54 +85,48 @@ async def _finish(tool: str, verified: Any, body: dict[str, Any],
     )
     if not settled:
         return {"x402": "settlement_failed", "reason": tx_ref}
-    body["_meta"] = {"metered": True, "network": verified.network,
+    body.setdefault("_meta", {})
+    body["_meta"] = {**body["_meta"], "metered": True, "network": verified.network,
                      "amount": verified.amount, "tx_ref": tx_ref,
                      "duration_ms": duration_ms}
     return body
 
 
 @mcp.tool()
-async def list_assets(payment: str | None = None) -> dict:
-    """List the structured asset universe. Monetized via x402 (one paid call)."""
+async def check_url(url: str, payment: str | None = None) -> dict:
+    """Check one website: is it reachable, is its certificate sound, does it send
+    the security headers, and what does its raw HTML say. Costs one x402 payment.
+    JavaScript is NOT rendered, so html.checked is always "raw_html_only"."""
     started = time.perf_counter()
-    verified, refusal = await _gate("list_assets", payment)
+    verified, refusal = await _gate("check_url", payment)
     if refusal is not None:
         return refusal
-    assets = await data.list_assets()
-    return await _finish("list_assets", verified, {"count": len(assets), "assets": assets}, started)
+    _, body = await verdict.run_check(url, metered=True, network=verified.network)
+    return await _finish("check_url", verified, body, started, host_of(url))
 
 
 @mcp.tool()
-async def get_asset(symbol: str, payment: str | None = None) -> dict:
-    """Full structured record for one asset by ticker symbol (e.g. 'ETH')."""
+async def check_tls(host: str, payment: str | None = None) -> dict:
+    """Certificate facts for one hostname: does it verify, how many days until it
+    expires, who issued it, does it actually cover this hostname."""
     started = time.perf_counter()
-    verified, refusal = await _gate("get_asset", payment)
+    verified, refusal = await _gate("check_tls", payment)
     if refusal is not None:
         return refusal
-    asset = await data.get_asset(symbol)
-    if not asset:
-        # The caller paid for a lookup we could not answer: settle anyway, the
-        # work was done, and say so plainly.
-        return await _finish("get_asset", verified, {"error": f"unknown asset '{symbol}'"}, started)
-    return await _finish("get_asset", verified, {"asset": asset}, started)
+    _, body = await verdict.run_tls(host, metered=True, network=verified.network)
+    return await _finish("check_tls", verified, body, started, host)
 
 
 @mcp.tool()
-async def get_signal(symbol: str, payment: str | None = None) -> dict:
-    """Derived signal (tier + bias) for one asset by ticker symbol."""
+async def check_headers(url: str, payment: str | None = None) -> dict:
+    """Status, timings and the four security headers (HSTS, CSP, X-Frame-Options,
+    X-Content-Type-Options) for one URL."""
     started = time.perf_counter()
-    verified, refusal = await _gate("get_signal", payment)
+    verified, refusal = await _gate("check_headers", payment)
     if refusal is not None:
         return refusal
-    asset = await data.get_asset(symbol)
-    if not asset:
-        return await _finish("get_signal", verified, {"error": f"unknown asset '{symbol}'"}, started)
-    return await _finish("get_signal", verified, {"signal": data.derive_signal(asset)}, started)
-
-
-async def _bootstrap() -> None:
-    await init_db()
-    await seed_if_empty()
+    _, body = await verdict.run_headers(url, metered=True, network=verified.network)
+    return await _finish("check_headers", verified, body, started, host_of(url))
 
 
 def streamable_http_app():
@@ -141,5 +136,5 @@ def streamable_http_app():
 
 
 if __name__ == "__main__":
-    anyio.run(_bootstrap)
+    anyio.run(init_db)
     mcp.run()  # stdio transport

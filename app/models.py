@@ -1,11 +1,10 @@
 """Tables: the audit log, the idempotency cache, the rate-limit buckets.
 
+There is no content table. Quanta checks live URLs; it does not hold a dataset.
+
 Two rules the schema enforces on purpose:
   * never store the full target URL (a query string can carry a token) - host only;
   * never store the raw payment header.
-
-`Asset` is the last of the original crypto sample dataset. It is deleted when the
-service is re-domained to website checks.
 """
 from __future__ import annotations
 
@@ -19,19 +18,6 @@ from .db import Base
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
-
-
-class Asset(Base):
-    __tablename__ = "assets"
-
-    symbol: Mapped[str] = mapped_column(String(16), primary_key=True)
-    name: Mapped[str] = mapped_column(String(64))
-    chain: Mapped[str] = mapped_column(String(32))
-    category: Mapped[str] = mapped_column(String(32))
-    market_cap_rank: Mapped[int] = mapped_column(Integer)
-    circulating_supply: Mapped[float] = mapped_column(Float)
-    # Free-form structured extras (links, tags, contract addresses, ...).
-    attributes: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
 class UsageLog(Base):
@@ -56,6 +42,11 @@ class UsageLog(Base):
     idempotent_replay: Mapped[bool] = mapped_column(Boolean, default=False)
     duration_ms: Mapped[int] = mapped_column(Integer, default=0)
     verdict_hash: Mapped[str] = mapped_column(String(64), default="")   # sha256 of the body
+    # Correlation only. On the HTTP surface the SDK settles AFTER the handler has
+    # returned, so the row is written unpaid and the after-settle hook stamps the
+    # tx hash onto it. The payment nonce is the only id both sides can see. It is
+    # not a secret and it is not the payment header.
+    payment_nonce: Mapped[str] = mapped_column(String(80), default="", index=True)
 
 
 class IdempotencyRecord(Base):

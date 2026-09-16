@@ -22,6 +22,13 @@ class Settings(BaseSettings):
     cdp_api_key_id: str | None = None
     cdp_api_key_secret: str | None = None
 
+    # ---- Website checks ---------------------------------------------------
+    check_timeout_s: float = 10.0
+    check_max_bytes: int = 2_097_152        # 2 MB
+    check_max_redirects: int = 5
+    # /demo is free and unmetered, so it may only point at hosts we chose.
+    demo_allowlist: str = "themeknock.net,example.com"
+
     # Public origin of this deployment (used for MCP host validation).
     public_base_url: str = "http://localhost:4021"
     # Extra Host header values the MCP endpoint accepts, comma separated.
@@ -36,6 +43,9 @@ class Settings(BaseSettings):
     app_env: str = "dev"
     port: int = 4021
 
+
+    def demo_hosts(self) -> list[str]:
+        return [h.strip().lower() for h in self.demo_allowlist.split(",") if h.strip()]
 
     def mcp_allowed_hosts(self) -> list[str]:
         from urllib.parse import urlparse
