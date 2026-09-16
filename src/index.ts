@@ -292,37 +292,73 @@ app.get("/health", async (c) => {
  *
  * Free and unmetered, so it is allowlisted: this endpoint cannot be pointed at
  * someone else's site and used as an anonymous scanner.
+ *
+ * It tries the allowlist in order and returns the first host that answers. That
+ * is not politeness, it is a live constraint: this Worker is served from a Custom
+ * Domain on the themeknock.net zone, and a Worker subrequest to another hostname
+ * on its OWN zone loops and times out. themeknock.net is therefore unreachable
+ * from inside quanta.themeknock.net, while every other host on the list is fine.
+ * Rather than ship a demo that 502s, the endpoint moves to the next host and says
+ * in `_meta` which ones did not answer.
  */
+const DEMO_MAX_ATTEMPTS = 3;
+
 app.get("/demo", async (c) => {
   const startedAt = Date.now();
   const settings = c.get("settings");
   const requested = c.req.query("url") ?? "";
-  const fallback = settings.demoAllowlist[0] ?? "themeknock.net";
-  const target = requested || `https://${fallback}`;
-  const host = hostOf(target).toLowerCase();
 
-  if (!settings.demoAllowlist.includes(host)) {
-    return c.json(
-      {
-        error: "demo_host_not_allowed",
-        allowed: settings.demoAllowlist,
-        hint: "The free demo only checks hosts we own. Paid calls to /v1/check take any URL.",
-      },
-      403,
-    );
+  if (requested) {
+    const host = hostOf(requested).toLowerCase();
+    if (!settings.demoAllowlist.includes(host)) {
+      return c.json(
+        {
+          error: "demo_host_not_allowed",
+          allowed: settings.demoAllowlist,
+          hint: "The free demo only checks hosts we own. Paid calls to /v1/check take any URL.",
+        },
+        403,
+      );
+    }
   }
 
-  const { status, body } = await runCheck(target, { settings, metered: false });
-  body._meta = { ...((body._meta ?? {}) as object), free_demo: true };
-  await logUsage(c.env.DB, {
-    surface: "http",
-    route: "/demo",
-    targetHost: host,
-    paid: false,
-    durationMs: Date.now() - startedAt,
-    verdictHash: await bodyHash(body),
-  });
-  return c.json(body, status as 200);
+  const candidates = requested
+    ? [requested]
+    : settings.demoAllowlist.slice(0, DEMO_MAX_ATTEMPTS).map((host) => `https://${host}`);
+
+  const skipped: Array<{ host: string; reason: string }> = [];
+  let last: { status: number; body: Record<string, unknown> } = {
+    status: 502,
+    body: { error: "demo_unavailable" },
+  };
+
+  for (const target of candidates) {
+    const host = hostOf(target).toLowerCase();
+    last = await runCheck(target, { settings, metered: false });
+
+    await logUsage(c.env.DB, {
+      surface: "http",
+      route: "/demo",
+      targetHost: host,
+      paid: false,
+      durationMs: Date.now() - startedAt,
+      verdictHash: await bodyHash(last.body),
+    });
+
+    if (last.status === 200) {
+      last.body._meta = {
+        ...((last.body._meta ?? {}) as object),
+        free_demo: true,
+        ...(skipped.length ? { demo_hosts_that_did_not_answer: skipped } : {}),
+      };
+      return c.json(last.body, 200);
+    }
+
+    skipped.push({ host, reason: String(last.body.detail ?? last.body.error ?? "unknown") });
+  }
+
+  last.body._meta = { free_demo: true, demo_hosts_that_did_not_answer: skipped };
+  return c.json(last.body, last.status as 200);
 });
 
 app.get("/bot", (c) => {

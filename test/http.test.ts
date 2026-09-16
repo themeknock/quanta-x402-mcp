@@ -290,6 +290,36 @@ describe("the free demo", () => {
     expect(facilitator.settleCalls).toBe(0);
   });
 
+  it("moves to the next host we own when the first one does not answer", async () => {
+    // Exactly the live case: this Worker cannot fetch its own zone's apex.
+    net
+      .serves("https://themeknock.net/", { throws: "The operation was aborted" })
+      .serves("https://example.com/", { body: goodHtml });
+
+    const response = await call("/demo");
+    expect(response.status).toBe(200);
+
+    const body = (await response.json()) as any;
+    expect(body.target.host).toBe("example.com");
+    expect(body._meta.demo_hosts_that_did_not_answer).toEqual([
+      { host: "themeknock.net", reason: "timeout" },
+    ]);
+
+    // Both attempts are in the audit log; the demo does not hide the one that failed.
+    const rows = await usageRows();
+    expect(rows.map((r) => r.target_host)).toEqual(["themeknock.net", "example.com"]);
+  });
+
+  it("reports the failure when no host we own answers", async () => {
+    net
+      .serves("https://themeknock.net/", { throws: "The operation was aborted" })
+      .serves("https://example.com/", { throws: "The operation was aborted" });
+
+    const response = await call("/demo");
+    expect(response.status).toBe(502);
+    expect((await response.json() as any)._meta.demo_hosts_that_did_not_answer).toHaveLength(2);
+  });
+
   it("cannot be pointed at someone else's site", async () => {
     const response = await call("/demo?url=https://not-ours.test/");
     expect(response.status).toBe(403);

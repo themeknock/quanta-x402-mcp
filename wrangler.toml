@@ -9,7 +9,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "quanta"
-database_id = "PLACEHOLDER_SET_BY_WRANGLER_D1_CREATE"
+database_id = "9c01584e-9738-49bc-986d-85ee43cb8125"
 
 # Public configuration. Anything sensitive is a secret (npx wrangler secret put NAME),
 # never a var: X402_EVM_ADDRESS, X402_SVM_ADDRESS, CDP_API_KEY_ID, CDP_API_KEY_SECRET.
@@ -26,11 +26,11 @@ RATE_REFILL_PER_S = "1"
 DEMO_ALLOWLIST = "themeknock.net,example.com"
 PUBLIC_BASE_URL = "https://quanta.themeknock.net"
 
-# Bound in session 4. Cloudflare writes the DNS record and issues the certificate itself -
-# there is no CNAME to copy and no proxy toggle. Uncomment, then `npx wrangler deploy`.
-# [[routes]]
-# pattern = "quanta.themeknock.net"
-# custom_domain = true
+# Cloudflare writes the DNS record and issues the certificate itself - there is no
+# CNAME to copy and no proxy toggle. Bound 16 Sep 2026.
+[[routes]]
+pattern = "quanta.themeknock.net"
+custom_domain = true
 
 [observability]
 enabled = true
