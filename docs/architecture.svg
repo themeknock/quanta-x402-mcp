@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 500" width="900" height="500" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">
+  <style>
+    .bg { fill: #0f1720; }
+    .card { fill: #16212c; stroke: #2b3b4a; stroke-width: 1; }
+    .accent { fill: #1d2f27; stroke: #3f7d5f; }
+    .store { fill: #1b2330; stroke: #3f5568; }
+    .t { fill: #d7e2ec; font-size: 13px; }
+    .s { fill: #8ba0b4; font-size: 11px; }
+    .n { fill: #9fd6b4; font-size: 11px; }
+    .line { stroke: #3f5568; stroke-width: 1.5; fill: none; }
+    .hi { stroke: #3f7d5f; stroke-width: 2; fill: none; }
+    .lbl { fill: #7d93a8; font-size: 10px; }
+  </style>
+  <rect class="bg" x="0" y="0" width="900" height="500"/>
+
+  <text class="t" x="32" y="38" font-size="15">Quanta — challenge, pay, settle, audit</text>
+  <text class="s" x="32" y="58">One x402ResourceServer serves both front doors, so the price cannot differ between them.</text>
+
+  <!-- agent -->
+  <rect class="card" x="32" y="100" width="170" height="96" rx="8"/>
+  <text class="t" x="50" y="128">agent</text>
+  <text class="s" x="50" y="148">HTTP client or MCP</text>
+  <text class="s" x="50" y="166">client, holding a</text>
+  <text class="s" x="50" y="184">Base Sepolia wallet</text>
+
+  <path class="line" d="M202 132 H 344" marker-end="url(#a)"/>
+  <text class="lbl" x="228" y="124">1. give it a URL</text>
+  <path class="line" d="M344 170 H 202" marker-end="url(#a)"/>
+  <text class="lbl" x="216" y="188">2. 402, and the price</text>
+
+  <!-- worker -->
+  <rect class="card" x="344" y="100" width="200" height="126" rx="8"/>
+  <text class="t" x="362" y="128">Worker</text>
+  <text class="s" x="362" y="150">/v1/*  SDK middleware</text>
+  <text class="s" x="362" y="168">/mcp   src/payments.ts</text>
+  <text class="n" x="362" y="194">verify, rate limit,</text>
+  <text class="n" x="362" y="212">check, then settle</text>
+
+  <path class="hi" d="M544 134 H 676" marker-end="url(#b)"/>
+  <text class="lbl" x="566" y="126">3. verify</text>
+  <path class="hi" d="M544 196 H 676" marker-end="url(#b)"/>
+  <text class="lbl" x="566" y="214">6. settle</text>
+
+  <!-- facilitator -->
+  <rect class="card accent" x="676" y="100" width="192" height="126" rx="8"/>
+  <text class="t" x="694" y="128">facilitator</text>
+  <text class="s" x="694" y="150">www.x402.org</text>
+  <text class="s" x="694" y="168">Base Sepolia, USDC</text>
+  <text class="s" x="694" y="194">$0.001 per call,</text>
+  <text class="s" x="694" y="212">settled on chain</text>
+
+  <path class="line" d="M444 226 V 288" marker-end="url(#a)"/>
+  <text class="lbl" x="456" y="262">4. fetch the target, once</text>
+
+  <!-- the check -->
+  <rect class="card" x="344" y="288" width="200" height="108" rx="8"/>
+  <text class="t" x="362" y="316">the check</text>
+  <text class="s" x="362" y="338">SSRF guard, every hop</text>
+  <text class="s" x="362" y="356">bounded GET, 2 MB cap</text>
+  <text class="s" x="362" y="374">HTMLRewriter + headers</text>
+
+  <path class="line" d="M544 330 H 676" marker-end="url(#a)"/>
+  <text class="lbl" x="566" y="322">5. verdict</text>
+
+  <!-- score -->
+  <rect class="card" x="676" y="288" width="192" height="108" rx="8"/>
+  <text class="t" x="694" y="316">score</text>
+  <text class="s" x="694" y="338">100 minus the weights</text>
+  <text class="s" x="694" y="356">high 25 / med 12 / low 8</text>
+  <text class="s" x="694" y="374">A≥90 B≥80 C≥70 D≥60</text>
+
+  <!-- into D1 -->
+  <path class="line" d="M772 396 V 430 H 326" marker-end="url(#a)"/>
+  <path class="hi" d="M868 163 H 886 V 452 H 326" marker-end="url(#b)"/>
+  <text class="lbl" x="336" y="424">7. the row</text>
+  <text class="lbl" x="336" y="468">8. the tx hash stamps it paid</text>
+
+  <rect class="store" x="32" y="404" width="290" height="66" rx="8"/>
+  <text class="t" x="50" y="428">D1</text>
+  <text class="s" x="50" y="448">audit log (host only, never the URL),</text>
+  <text class="s" x="50" y="464">idempotency, per-payer rate buckets</text>
+
+  <text class="s" x="32" y="492">The payer address from the verified payment is the identity. Nothing to sign up for, nothing to leak.</text>
+
+  <defs>
+    <marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="#3f5568"/>
+    </marker>
+    <marker id="b" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="#3f7d5f"/>
+    </marker>
+  </defs>
+</svg>
