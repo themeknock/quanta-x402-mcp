@@ -70,6 +70,21 @@ describe("free routes", () => {
     expect(body.limits.certificate_fields).toContain("not readable");
   });
 
+  it("serves a page to a browser and JSON to everything else, from one URL", async () => {
+    const machine = await call("/");
+    expect(machine.headers.get("content-type")).toContain("application/json");
+    expect((await machine.json() as any).service).toBe("Quanta");
+
+    const browser = await call("/", { headers: { accept: "text/html,application/xhtml+xml" } });
+    expect(browser.headers.get("content-type")).toContain("text/html");
+
+    const html = await browser.text();
+    expect(html).toContain("<title>Quanta");
+    // The page must state the limits, not only the JSON.
+    expect(html).toContain("does not render JavaScript");
+    expect(html).toContain("mcp-remote");
+  });
+
   it("reports health from a real query, not a hard-coded true", async () => {
     const response = await call("/health");
     expect(response.status).toBe(200);
@@ -277,43 +292,43 @@ describe("rate limiting", () => {
 });
 
 describe("the free demo", () => {
-  it("checks a host we own, free and unmetered", async () => {
-    net.serves("https://themeknock.net/", { body: goodHtml });
-
-    const response = await call("/demo");
-    expect(response.status).toBe(200);
-
-    const body = (await response.json()) as any;
-    expect(body.target.host).toBe("themeknock.net");
-    expect(body._meta.free_demo).toBe(true);
-    expect(body._meta.metered).toBe(false);
-    expect(facilitator.settleCalls).toBe(0);
-  });
-
-  it("moves to the next host we own when the first one does not answer", async () => {
-    // Exactly the live case: this Worker cannot fetch its own zone's apex.
-    net
-      .serves("https://themeknock.net/", { throws: "The operation was aborted" })
-      .serves("https://example.com/", { body: goodHtml });
+  it("checks an allowlisted host, free and unmetered", async () => {
+    net.serves("https://example.com/", { body: goodHtml });
 
     const response = await call("/demo");
     expect(response.status).toBe(200);
 
     const body = (await response.json()) as any;
     expect(body.target.host).toBe("example.com");
+    expect(body._meta.free_demo).toBe(true);
+    expect(body._meta.metered).toBe(false);
+    expect(facilitator.settleCalls).toBe(0);
+  });
+
+  it("moves to the next allowlisted host when the first one does not answer", async () => {
+    // The live shape of this: a host that cannot answer us must not become the verdict.
+    net
+      .serves("https://example.com/", { throws: "The operation was aborted" })
+      .serves("https://themeknock.net/", { body: goodHtml });
+
+    const response = await call("/demo");
+    expect(response.status).toBe(200);
+
+    const body = (await response.json()) as any;
+    expect(body.target.host).toBe("themeknock.net");
     expect(body._meta.demo_hosts_that_did_not_answer).toEqual([
-      { host: "themeknock.net", reason: "timeout" },
+      { host: "example.com", reason: "timeout" },
     ]);
 
     // Both attempts are in the audit log; the demo does not hide the one that failed.
     const rows = await usageRows();
-    expect(rows.map((r) => r.target_host)).toEqual(["themeknock.net", "example.com"]);
+    expect(rows.map((r) => r.target_host)).toEqual(["example.com", "themeknock.net"]);
   });
 
-  it("reports the failure when no host we own answers", async () => {
+  it("reports the failure when no allowlisted host answers", async () => {
     net
-      .serves("https://themeknock.net/", { throws: "The operation was aborted" })
-      .serves("https://example.com/", { throws: "The operation was aborted" });
+      .serves("https://example.com/", { throws: "The operation was aborted" })
+      .serves("https://themeknock.net/", { throws: "The operation was aborted" });
 
     const response = await call("/demo");
     expect(response.status).toBe(502);

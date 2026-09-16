@@ -21,6 +21,7 @@ import { runCheck, runHeaders, runHttps } from "./checks/verdict";
 import { hostOf } from "./checks/fetch";
 import { settingsFrom, USER_AGENT, type Env, type Settings } from "./config";
 import { handleMcp } from "./mcp";
+import { landingPage } from "./landing";
 import { decodeVerifiedHeader, nonceOf, payerOf } from "./payments";
 import * as idempotency from "./idempotency";
 import { take } from "./ratelimit";
@@ -252,9 +253,22 @@ app.get("/v1/headers", async (c) => {
 // --------------------------------------------------------------------------
 // Free routes
 // --------------------------------------------------------------------------
+/**
+ * One URL, two audiences.
+ *
+ * The primary caller here is an agent, and an agent wants the machine answer, so
+ * JSON stays the default. A browser asks for text/html, and a person who opens
+ * the link deserves to understand this in fifteen seconds - which raw JSON does
+ * not do.
+ */
 app.get("/", (c) => {
   const settings = c.get("settings");
   const metered = Boolean(getResourceServer(settings));
+
+  if ((c.req.header("accept") ?? "").includes("text/html")) {
+    return c.html(landingPage(settings, settings.price));
+  }
+
   return c.json({
     service: "Quanta",
     what_it_does:
@@ -315,7 +329,7 @@ app.get("/demo", async (c) => {
         {
           error: "demo_host_not_allowed",
           allowed: settings.demoAllowlist,
-          hint: "The free demo only checks hosts we own. Paid calls to /v1/check take any URL.",
+          hint: "The free demo only checks hosts on its allowlist. Paid calls to /v1/check take any URL.",
         },
         403,
       );

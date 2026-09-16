@@ -23,7 +23,11 @@ CHECK_MAX_BYTES = "2097152"
 CHECK_MAX_REDIRECTS = "5"
 RATE_CAPACITY = "60"
 RATE_REFILL_PER_S = "1"
-DEMO_ALLOWLIST = "themeknock.net,example.com"
+# Order matters: the first host is what a bare /demo checks. themeknock.net is
+# second on purpose - this Worker is served from that zone and cannot fetch it
+# (see "It cannot check its own zone" in the README), so leading with it would
+# cost every demo call a 10-second timeout before the fallback.
+DEMO_ALLOWLIST = "example.com,themeknock.net"
 PUBLIC_BASE_URL = "https://quanta.themeknock.net"
 
 # Cloudflare writes the DNS record and issues the certificate itself - there is no
