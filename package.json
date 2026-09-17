@@ -13,6 +13,7 @@
     "db:local": "wrangler d1 execute quanta --local --file schema.sql",
     "db:remote": "wrangler d1 execute quanta --remote --file schema.sql",
     "stats": "tsx scripts/stats.ts",
+    "balance": "tsx scripts/balance.ts",
     "pay": "tsx client/pay-and-fetch.ts"
   },
   "dependencies": {

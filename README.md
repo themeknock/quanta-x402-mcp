@@ -227,6 +227,7 @@ npm test          # 71 tests, inside workerd, against a stub facilitator, meteri
 npm run typecheck
 npm run dev       # wrangler dev --local
 npm run stats     # the numbers above, from the live database
+npm run balance -- 0xPayer   # is the payer funded? read from the chain, not from memory
 ```
 
 Tests run in the real runtime via `@cloudflare/vitest-pool-workers`, so HTMLRewriter, D1 and
