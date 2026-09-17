@@ -1,0 +1,67 @@
+<!doctype html><meta charset="utf-8">
+<style>
+@font-face{font-family:'Plex';src:local('IBM Plex Mono'),local('Menlo');}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:960px;height:400px;overflow:hidden}
+body{background:#0B211F;font-family:'IBM Plex Mono',Menlo,monospace;color:#E8F0EC;
+  display:flex;flex-direction:column;padding:26px 30px 0}
+.bar{display:flex;align-items:center;gap:10px;padding-bottom:16px;border-bottom:1px solid #1E3B36}
+.dot{width:10px;height:10px;border-radius:50%;background:#1E3B36}
+.dot:first-child{background:#C8F04B}
+.tt{margin-left:10px;font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:#8FA79E}
+.tt b{color:#E8F0EC;font-weight:600;letter-spacing:.14em}
+#scr{flex:1;padding-top:20px;font-size:16px;line-height:1.62;white-space:pre-wrap;word-break:break-all}
+.cmd{color:#E8F0EC}
+.p{color:#C8F04B}
+.out{color:#8FA79E}
+.key{color:#E8F0EC}
+.hi{color:#C8F04B}
+.bad{color:#FF8A6B}
+.cur{background:#C8F04B;color:#0B211F}
+#cap{border-top:1px solid #1E3B36;padding:14px 0 18px;font-family:'Schibsted Grotesk',-apple-system,system-ui,sans-serif;
+  font-size:15.5px;color:#8FA79E;display:flex;align-items:center;gap:12px}
+#cap i{font-style:normal;background:#C8F04B;color:#0B211F;font-size:11px;font-weight:700;
+  letter-spacing:.1em;padding:3px 7px;border-radius:3px}
+</style>
+<div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+<span class="tt"><b>QUANTA</b> &nbsp;·&nbsp; x402 + MCP &nbsp;·&nbsp; quanta.themeknock.net</span></div>
+<div id="scr"></div>
+<div id="cap"><i id="capn">01</i><span id="capt"></span></div>
+<script>
+const B=[
+ {cap:"Every paid call starts with a 402. The price is in the header, not the body.",
+  cmd:"curl -si https://quanta.themeknock.net/v1/check?url=https://example.com",
+  out:['<span class="hi">HTTP/2 402</span>','<span class="out">payment-required:</span> eyJ4NDAyVmVyc2lvbiI6MiwiZXJyb3IiOiJQYXltZW50IHJlcXVpcmVkIiwicmVzb3VyY2UiOnsidXJsIjoiaHR0cHM6Ly9xdWFudGEudGhlbWVrbm9jay5uZXQvdjEvY2hlY2s/dXJsPWh0dHBzOi8vZXhhbXBsZS5jb20iLC...']},
+ {cap:"0.001 USDC on Base Sepolia. No signup, no API key, no dashboard.",
+  cmd:"... | base64 -d | jq '.accepts[0] | {scheme,network,amount,asset,payTo}'",
+  out:['{','  <span class="key">"scheme"</span>  : <span class="hi">"exact"</span>,','  <span class="key">"network"</span> : <span class="hi">"eip155:84532"</span>,','  <span class="key">"amount"</span>  : <span class="hi">"1000"</span>,','  <span class="key">"asset"</span>   : "0x036CbD53842c5426634e7929541eC2318f3dCF7e",','  <span class="key">"payTo"</span>   : "0x759E7D2569435Ec1E7BFCb495C355a417630ec85"','}']},
+ {cap:"One call is free, so a human can see what it actually does.",
+  cmd:"curl -s .../demo | jq '{host:.target.host} + (.verdict|{grade,score})'",
+  out:['{','  <span class="key">"host"</span>  : "example.com",','  <span class="key">"grade"</span> : <span class="hi">"D"</span>,   <span class="key">"score"</span> : <span class="hi">68</span>','}','','<span class="out">$</span> ... | jq -c \'[.verdict.issues[].code]\'','[ <span class="hi">"NO_HSTS"</span>, <span class="hi">"NO_CSP"</span>, <span class="hi">"NO_X_FRAME_OPTIONS"</span>, <span class="hi">"NO_X_CONTENT_TYPE_OPTIONS"</span> ]']},
+ {cap:"The same checks exposed to agents over MCP. One service, not a wrapper.",
+  cmd:"curl -s .../mcp -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}' | jq -c '[.result.tools[].name]'",
+  out:['[<span class="hi">"check_url"</span>,<span class="hi">"check_https"</span>,<span class="hi">"check_headers"</span>]']},
+ {cap:"And the gate is real: a bad payment is refused before the target is fetched.",
+  cmd:'... tools/call check_url {"url":"https://example.com","payment":"bogus"}',
+  out:['{','  <span class="key">"x402"</span>  : <span class="bad">"payment_invalid"</span>,','  <span class="key">"reason"</span>: <span class="bad">"malformed_payment_payload"</span>','}']}
+];
+const F=[];
+B.forEach((b,i)=>{
+  for(let k=0;k<=b.cmd.length;k+=2)F.push({b:i,typed:k,lines:0,cur:1});
+  for(let h=0;h<5;h++)F.push({b:i,typed:b.cmd.length,lines:0,cur:1});
+  for(let j=1;j<=b.out.length;j++)for(let r=0;r<3;r++)F.push({b:i,typed:b.cmd.length,lines:j,cur:0});
+  const hold=i===B.length-1?56:34;
+  for(let h=0;h<hold;h++)F.push({b:i,typed:b.cmd.length,lines:b.out.length,cur:0});
+});
+window.__n=F.length;
+window.render=(n)=>{
+  const f=F[n],b=B[f.b];
+  let h='<div class="cmd"><span class="p">$</span> '+b.cmd.slice(0,f.typed).replace(/&/g,'&amp;').replace(/</g,'&lt;')+(f.cur&&n%4<2?'<span class="cur"> </span>':'')+'</div>';
+  if(f.lines>0)h+='<div style="height:10px"></div>';
+  for(let j=0;j<f.lines;j++)h+='<div>'+b.out[j]+'</div>';
+  document.getElementById('scr').innerHTML=h;
+  document.getElementById('capn').textContent='0'+(f.b+1);
+  document.getElementById('capt').textContent=b.cap;
+};
+render(0);
+</script>

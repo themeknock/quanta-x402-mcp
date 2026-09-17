@@ -3,7 +3,7 @@
 **An AI agent hands Quanta a URL, pays a tenth of a cent, and gets back a structured
 verdict on whether that website is broken.** No account. No API key. The payment is the login.
 
-![how it works](docs/architecture.svg)
+![Quanta: a 402 challenge, the decoded price, a free verdict, the MCP tools, and a bogus payment refused](docs/demo.gif)
 
 Try it in 30 seconds (no wallet needed):
 
@@ -68,7 +68,9 @@ Decoded, that header is the challenge:
 
 ## How it works
 
-`agent → challenge → pay → settle → audit`, and the diagram above is the whole of it.
+![agent, challenge, pay, settle, audit](docs/architecture.svg)
+
+`agent → challenge → pay → settle → audit`, and the diagram is the whole of it.
 
 The part worth reading the code for is that **there is one `x402ResourceServer`** ([`src/x402.ts`](src/x402.ts)),
 shared by both front doors. The HTTP routes are gated by the SDK's Hono middleware; the MCP
@@ -179,18 +181,41 @@ log. None of them is typed by hand.
 
 ```
 $ npm run stats
-quanta stats (remote) - run 2026-09-16
-  calls logged        6
+quanta stats (remote) - run 2026-09-17
+  calls logged        13
   paid calls          0
   unique payers       0
-  duration p50 / p95  10000 ms / 10577 ms
+  duration p50 / p95  10000 ms / 10584 ms
   idempotent replays  0 (0.0%)
   no verdict returned 0 (0.0%)
 ```
 
-Read that honestly: it is the day it went live. `paid calls 0` means no real settlement has
-happened yet — that needs a funded Base Sepolia wallet, and Circle's faucet has a bot check a
-human has to clear. The p50 is dominated by the same-zone timeout described above.
+`paid calls 0` is the honest number, and it needs the honest explanation.
+
+The paid loop has been run against the live service with a real wallet and the real
+[x402.org](https://x402.org) facilitator. It signs an EIP-3009 authorization, the service
+matches it against what it sells, and the facilitator verifies it on Base Sepolia. It gets
+all the way to the balance:
+
+```
+$ EVM_PRIVATE_KEY=0x... npm run pay
+[wallet] 0x89ed2cf666Ad42B9a494f7912B79cbCEaF9c33b9 on Base Sepolia (eip155:84532)
+[unpaid] 402 Payment Required
+[paying] https://quanta.themeknock.net/v1/check?url=https%3A%2F%2Fexample.com
+[paid] 402 Payment Required
+[settlement] nothing settled.
+[settlement] the facilitator refused it: invalid_exact_evm_insufficient_balance
+```
+
+`invalid_exact_evm_insufficient_balance` is a verdict from the facilitator's own on-chain
+check, and it is the last gate in the chain. Everything before it — the challenge, the
+signature, the payload shape, requirement matching, the facilitator handshake — ran for real
+to produce it. What is missing is testnet USDC in that wallet, and every faucet that dispenses
+it is behind either a bot check or an account signup, neither of which a program should do on
+someone's behalf. So there is no settlement transaction hash here, and there will not be a
+fabricated one.
+
+The p50 is dominated by the same-zone timeout described above.
 
 ---
 
@@ -198,7 +223,7 @@ human has to clear. The p50 is dominated by the same-zone timeout described abov
 
 ```
 npm install
-npm test          # 70 tests, inside workerd, against a stub facilitator, metering ON
+npm test          # 71 tests, inside workerd, against a stub facilitator, metering ON
 npm run typecheck
 npm run dev       # wrangler dev --local
 npm run stats     # the numbers above, from the live database
@@ -209,7 +234,16 @@ Tests run in the real runtime via `@cloudflare/vitest-pool-workers`, so HTMLRewr
 that is the only thing that is — so the suite never touches the network and can still assert
 that a bogus payment is refused and a good one settles.
 
-To record the README GIF: `vhs docs/demo.tape` with `npm run dev` already running.
+To rebuild the README GIF (needs `npm i -D playwright` and `ffmpeg`):
+`node docs/demo-shoot.mjs docs` renders every frame of
+[`docs/demo-frames.html`](docs/demo-frames.html) in Chromium, then
+
+```
+ffmpeg -framerate 22 -i docs/frames/%04d.png -vf palettegen=max_colors=64 docs/pal.png
+ffmpeg -framerate 22 -i docs/frames/%04d.png -i docs/pal.png -lavfi paletteuse=dither=none docs/demo.gif
+```
+
+Every command shown in that GIF prints exactly what the live service returns for it.
 
 ---
 

@@ -18,6 +18,7 @@
  */
 
 import { x402Client } from "@x402/core/client";
+import { decodePaymentRequiredHeader } from "@x402/core/http";
 import { decodePaymentResponseHeader, wrapFetchWithPayment } from "@x402/fetch";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { privateKeyToAccount } from "viem/accounts";
@@ -64,7 +65,21 @@ async function main(): Promise<void> {
 
   const settlementHeader = response.headers.get("PAYMENT-RESPONSE");
   if (!settlementHeader) {
-    console.error("[settlement] no PAYMENT-RESPONSE header - nothing settled. Not a success.");
+    // A second 402 means the payment was built and sent but the facilitator
+    // refused it. The reason is in the challenge it sends back, and printing it
+    // is the whole point of this client - "it failed" is not a useful answer.
+    console.error("[settlement] nothing settled.");
+    const challenge = response.headers.get("PAYMENT-REQUIRED");
+    if (challenge) {
+      const decoded = decodePaymentRequiredHeader(challenge) as { error?: string };
+      console.error(`[settlement] the facilitator refused it: ${decoded.error ?? "no reason given"}`);
+    }
+    if (response.status === 402) {
+      console.error(
+        `[settlement] check the payer's testnet USDC balance:\n` +
+          `             https://sepolia.basescan.org/token/0x036CbD53842c5426634e7929541eC2318f3dCF7e?a=${account.address}`,
+      );
+    }
     process.exitCode = 1;
   } else {
     const settlement = decodePaymentResponseHeader(settlementHeader) as {
